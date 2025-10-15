@@ -1,0 +1,21 @@
+# ===== Visual Studio =====
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.dbmdl
+*.mdf
+*.ldf
+.env
+appsettings.json
+
+# ===== React (system-frontend) =====
+system-frontend/node_modules/
+system-frontend/build/
+system-frontend/dist/
+.DS_Store
+
+# ===== OS / IDE =====
+Thumbs.db
+*.log

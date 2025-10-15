@@ -1,0 +1,17 @@
+# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.dbmdl
+*.mdf
+*.ldf
+.env
+appsettings.json
+
+# React
+node_modules/
+build/
+dist/
+.DS_Store
