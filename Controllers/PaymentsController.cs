@@ -52,24 +52,56 @@ namespace EventBookingSystem.Controllers
 
                 if (isPaymentSuccessful)
                 {
-                    // Update payment status
-                    payment.Status = "Completed";
-                    payment.PaidAt = DateTime.UtcNow;
-
-                    // Update booking status
-                    payment.Booking.Status = "Confirmed";
-
-                    // Update ticket quantities
-                    foreach (var item in payment.Booking.BookingItems)
+                    // Validate booking not expired
+                    if (payment.Booking.ExpiresAt < DateTime.UtcNow)
                     {
-                        var ticketType = await _context.TicketTypes.FindAsync(item.TicketTypeId);
-                        if (ticketType != null)
+                        return BadRequest(new { message = "Booking has expired" });
+                    }
+
+                    // Transaction: re-check availability and atomically update
+                    await using var tx = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+
+                    // Reload latest booking with items and ticket types within the transaction
+                    var booking = await _context.Bookings
+                        .Include(b => b.BookingItems)
+                            .ThenInclude(bi => bi.TicketType)
+                        .FirstOrDefaultAsync(b => b.Id == payment.BookingId);
+
+                    if (booking == null)
+                    {
+                        return NotFound(new { message = "Booking not found" });
+                    }
+
+                    // Re-check stock
+                    foreach (var item in booking.BookingItems)
+                    {
+                        var tt = await _context.TicketTypes.FirstOrDefaultAsync(t => t.Id == item.TicketTypeId);
+                        if (tt == null)
                         {
-                            ticketType.QuantitySold += item.Quantity;
+                            await tx.RollbackAsync();
+                            return NotFound(new { message = "Ticket type not found" });
+                        }
+                        var available = tt.QuantityAvailable - tt.QuantitySold;
+                        if (item.Quantity > available)
+                        {
+                            await tx.RollbackAsync();
+                            return BadRequest(new { message = $"Not enough '{tt.Name}' tickets available" });
                         }
                     }
 
+                    // Apply updates
+                    payment.Status = "Completed";
+                    payment.PaidAt = DateTime.UtcNow;
+                    booking.Status = "Confirmed";
+
+                    foreach (var item in booking.BookingItems)
+                    {
+                        var tt = await _context.TicketTypes.FirstAsync(t => t.Id == item.TicketTypeId);
+                        tt.QuantitySold += item.Quantity;
+                    }
+
                     await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
 
                     return Ok(new
                     {
@@ -160,7 +192,7 @@ namespace EventBookingSystem.Controllers
                     return BadRequest(new { message = "Payment is not pending" });
                 }
 
-                // Check if payment is still within expiry time (24 hours for Money Market)
+                // Check if payment is still within expiry time (using booking expiry for now)
                 if (payment.Booking.ExpiresAt < DateTime.UtcNow)
                 {
                     payment.Status = "Failed";
@@ -169,23 +201,48 @@ namespace EventBookingSystem.Controllers
                     return BadRequest(new { message = "Payment has expired" });
                 }
 
-                // Simulate payment confirmation
-                // In a real application, this would be called by the payment gateway webhook
-                payment.Status = "Completed";
-                payment.PaidAt = DateTime.UtcNow;
-                payment.Booking.Status = "Confirmed";
+                // Transaction: re-check availability and atomically mark completed
+                await using var tx = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
 
-                // Update ticket quantities
-                foreach (var item in payment.Booking.BookingItems)
+                var booking = await _context.Bookings
+                    .Include(b => b.BookingItems)
+                        .ThenInclude(bi => bi.TicketType)
+                    .FirstOrDefaultAsync(b => b.Id == payment.BookingId);
+
+                if (booking == null)
                 {
-                    var ticketType = await _context.TicketTypes.FindAsync(item.TicketTypeId);
-                    if (ticketType != null)
+                    await tx.RollbackAsync();
+                    return NotFound(new { message = "Booking not found" });
+                }
+
+                foreach (var item in booking.BookingItems)
+                {
+                    var tt = await _context.TicketTypes.FirstOrDefaultAsync(t => t.Id == item.TicketTypeId);
+                    if (tt == null)
                     {
-                        ticketType.QuantitySold += item.Quantity;
+                        await tx.RollbackAsync();
+                        return NotFound(new { message = "Ticket type not found" });
+                    }
+                    var available = tt.QuantityAvailable - tt.QuantitySold;
+                    if (item.Quantity > available)
+                    {
+                        await tx.RollbackAsync();
+                        return BadRequest(new { message = $"Not enough '{tt.Name}' tickets available" });
                     }
                 }
 
+                payment.Status = "Completed";
+                payment.PaidAt = DateTime.UtcNow;
+                booking.Status = "Confirmed";
+
+                foreach (var item in booking.BookingItems)
+                {
+                    var tt = await _context.TicketTypes.FirstAsync(t => t.Id == item.TicketTypeId);
+                    tt.QuantitySold += item.Quantity;
+                }
+
                 await _context.SaveChangesAsync();
+                await tx.CommitAsync();
 
                 return Ok(new
                 {

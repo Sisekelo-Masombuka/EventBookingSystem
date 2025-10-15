@@ -15,6 +15,8 @@ namespace EventBookingSystem.Data
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<BookingItem> BookingItems { get; set; }
         public DbSet<Payment> Payments { get; set; }
+        public DbSet<Favorite> Favorites { get; set; }
+        public DbSet<Review> Reviews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -85,6 +87,37 @@ namespace EventBookingSystem.Data
                 entity.HasOne(e => e.Booking)
                     .WithOne(e => e.Payment)
                     .HasForeignKey<Payment>(e => e.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Configure Favorite entity
+            modelBuilder.Entity<Favorite>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.UserId, e.EventId }).IsUnique();
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.Favorites)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Event)
+                    .WithMany()
+                    .HasForeignKey(e => e.EventId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Configure Review entity
+            modelBuilder.Entity<Review>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.UserId, e.EventId }).IsUnique();
+                entity.Property(e => e.Rating).IsRequired();
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Event)
+                    .WithMany()
+                    .HasForeignKey(e => e.EventId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

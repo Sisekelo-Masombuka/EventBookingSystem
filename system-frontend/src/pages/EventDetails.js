@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchEventById, clearCurrentEvent } from '../redux/slices/eventsSlice';
-import { addToCart } from '../redux/slices/cartSlice';
-import { FaMapMarkerAlt, FaCalendarAlt, FaClock, FaUsers, FaTicketAlt, FaArrowLeft, FaShoppingCart } from 'react-icons/fa';
+import { addToCart, fetchCart } from '../redux/slices/cartSlice';
+import { fetchFavorites, addFavorite, removeFavorite } from '../redux/slices/favoritesSlice';
+import { fetchEventReviews, upsertReview } from '../redux/slices/reviewsSlice';
+import { FaMapMarkerAlt, FaCalendarAlt, FaClock, FaUsers, FaTicketAlt, FaArrowLeft, FaShoppingCart, FaHeart } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -13,16 +15,70 @@ const EventDetails = () => {
   const dispatch = useDispatch();
   const { currentEvent, loading, error } = useSelector((state) => state.events);
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const { items: favoriteItems } = useSelector((state) => state.favorites);
+  const { byEvent: reviewsByEvent } = useSelector((state) => state.reviews);
   const [selectedTickets, setSelectedTickets] = useState({});
+  const [myRating, setMyRating] = useState(0);
+  const [myComment, setMyComment] = useState('');
 
   useEffect(() => {
     if (id) {
       dispatch(fetchEventById(id));
+      dispatch(fetchEventReviews(id));
+      if (isAuthenticated) dispatch(fetchFavorites());
     }
     return () => {
       dispatch(clearCurrentEvent());
     };
-  }, [dispatch, id]);
+  }, [dispatch, id, isAuthenticated]);
+
+  // Favorites helpers
+  const isFavorited = (eventId) => {
+    return Array.isArray(favoriteItems) && favoriteItems.some((f) => f.eventId === eventId);
+  };
+
+  const toggleFavorite = async (eventId) => {
+    if (!isAuthenticated) {
+      toast.error('Please login to use wishlist');
+      navigate('/login');
+      return;
+    }
+    try {
+      if (isFavorited(eventId)) {
+        await dispatch(removeFavorite(eventId)).unwrap();
+        toast.success('Removed from wishlist');
+      } else {
+        await dispatch(addFavorite(eventId)).unwrap();
+        toast.success('Added to wishlist');
+      }
+      await dispatch(fetchFavorites());
+    } catch (e) {
+      toast.error('Failed to update wishlist');
+    }
+  };
+
+  // Reviews submit handler
+  const submitReview = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      toast.error('Please login to submit a review');
+      navigate('/login');
+      return;
+    }
+    if (!myRating || myRating < 1 || myRating > 5) {
+      toast.error('Please select a rating between 1 and 5');
+      return;
+    }
+    try {
+      await dispatch(upsertReview({ eventId: id, rating: myRating, comment: myComment || null })).unwrap();
+      toast.success('Review submitted');
+      setMyComment('');
+      setMyRating(0);
+      await dispatch(fetchEventReviews(id));
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : 'Failed to submit review');
+    }
+  };
 
   const handleTicketQuantityChange = (ticketTypeId, quantity) => {
     const numQuantity = parseInt(quantity) || 0;
@@ -53,6 +109,8 @@ const EventDetails = () => {
       })).unwrap();
       
       toast.success(`${quantity} ticket(s) added to cart!`);
+      // Refresh cart in store (Navbar badge + Basket)
+      await dispatch(fetchCart());
       
       // Clear the selected quantity for this ticket type
       setSelectedTickets(prev => ({
@@ -157,9 +215,24 @@ const EventDetails = () => {
             <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                    {currentEvent.title}
-                  </h1>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {currentEvent.title}
+                    </h1>
+                    {reviewsByEvent?.[id]?.averageRating !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-yellow-500">
+                          {Array.from({ length: 5 }).map((_, i) => {
+                            const avg = reviewsByEvent[id].averageRating || 0;
+                            const filled = i + 1 <= Math.round(avg);
+                            return <span key={i}>{filled ? '★' : '☆'}</span>;
+                          })}
+                        </div>
+                        <span className="text-sm text-gray-600">{reviewsByEvent[id].averageRating.toFixed(1)} / 5</span>
+                        <span className="text-xs text-gray-400">({reviewsByEvent[id].count || 0})</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center text-gray-600 mb-2">
                     <FaMapMarkerAlt className="w-5 h-5 mr-2 text-red-600" />
                     <span className="text-lg">{currentEvent.locationCity} • {currentEvent.venue}</span>
@@ -169,8 +242,17 @@ const EventDetails = () => {
                     <span className="text-lg">{formatDateTime(currentEvent.startDateTime)}</span>
                   </div>
                 </div>
-                <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold">
-                  {currentEvent.category}
+                <div className="flex items-center gap-2">
+                  <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-semibold">
+                    {currentEvent.category}
+                  </div>
+                  <button
+                    onClick={() => toggleFavorite(currentEvent.id)}
+                    className={`p-2 rounded-full border ${isFavorited(currentEvent.id) ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-200'} hover:opacity-90`}
+                    aria-label="Toggle favorite"
+                  >
+                    <FaHeart className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -317,6 +399,47 @@ const EventDetails = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Reviews</h3>
+            {reviewsByEvent?.[id]?.reviews?.length > 0 ? (
+              <div className="space-y-4">
+                {reviewsByEvent[id].reviews.map(r => (
+                  <div key={r.id} className="border border-gray-200 rounded p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-gray-900">{r.user?.name}</div>
+                      <div className="text-yellow-600">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</div>
+                    </div>
+                    {r.comment && <div className="text-gray-700 mt-2">{r.comment}</div>}
+                    <div className="text-xs text-gray-500 mt-1">{new Date(r.createdAt).toLocaleString('en-ZA')}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-600">No reviews yet.</div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Leave a Review</h3>
+            <form onSubmit={submitReview} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Rating</label>
+                <select value={myRating} onChange={(e) => setMyRating(parseInt(e.target.value) || 0)} className="w-full border border-gray-300 rounded px-3 py-2">
+                  <option value={0}>Select rating</option>
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Comment (optional)</label>
+                <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)} rows={4} className="w-full border border-gray-300 rounded px-3 py-2" placeholder="Share your experience..." />
+              </div>
+              <button type="submit" className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Submit Review</button>
+            </form>
           </div>
         </div>
       </div>

@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, getCurrentUser } from '../redux/slices/authSlice';
+import { logout } from '../redux/slices/authSlice';
 import { fetchCart } from '../redux/slices/cartSlice';
+import { fetchFavorites } from '../redux/slices/favoritesSlice';
 import { FaShoppingCart, FaUser, FaSignOutAlt, FaBars, FaTimes } from 'react-icons/fa';
 import { useState } from 'react';
 
@@ -16,8 +17,8 @@ const Navbar = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      dispatch(getCurrentUser());
       dispatch(fetchCart());
+      dispatch(fetchFavorites());
     }
   }, [dispatch, isAuthenticated]);
 
@@ -73,6 +74,19 @@ const Navbar = () => {
                 }`}
               >
                 Dashboard
+              </Link>
+            )}
+
+            {isAuthenticated && (
+              <Link
+                to="/wishlist"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                  isActive('/wishlist')
+                    ? 'text-red-600 bg-red-50'
+                    : 'text-gray-700 hover:text-red-600'
+                }`}
+              >
+                Wishlist
               </Link>
             )}
 
@@ -162,6 +176,20 @@ const Navbar = () => {
                   }`}
                 >
                   Dashboard
+                </Link>
+              )}
+
+              {isAuthenticated && (
+                <Link
+                  to="/wishlist"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    isActive('/wishlist')
+                      ? 'text-red-600 bg-red-50'
+                      : 'text-gray-700 hover:text-red-600'
+                  }`}
+                >
+                  Wishlist
                 </Link>
               )}
 

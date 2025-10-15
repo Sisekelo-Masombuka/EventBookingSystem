@@ -28,11 +28,7 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
+  // Do not auto-login after registration
 
   useEffect(() => {
     if (error) {
@@ -82,7 +78,8 @@ const Register = () => {
 
     try {
       await dispatch(register(formData)).unwrap();
-      toast.success('Registration successful! Welcome to Mzansi Moments Hub!');
+      toast.success('Registration successful! Please log in.');
+      navigate('/login');
     } catch (error) {
       // Error is handled by useEffect above
     }

@@ -204,6 +204,11 @@ namespace EventBookingSystem.Controllers
                 if (request.PaymentMethod == "MoneyMarket")
                 {
                     payment.ReferenceCode = GenerateReferenceCode();
+                    payment.ExpiresAt = DateTime.UtcNow.AddHours(24);
+                }
+                else
+                {
+                    payment.ExpiresAt = null;
                 }
 
                 _context.Payments.Add(payment);

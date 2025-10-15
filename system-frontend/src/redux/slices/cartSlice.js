@@ -57,6 +57,46 @@ export const checkout = createAsyncThunk(
   }
 );
 
+// Process card payment
+export const processCardPayment = createAsyncThunk(
+  'cart/processCardPayment',
+  async ({ paymentId, card }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/payments/card`,
+        {
+          paymentId,
+          cardholderName: card.cardholderName,
+          cardNumber: card.cardNumber.replace(/\s/g, ''),
+          expiryDate: card.expiryDate,
+          CVV: card.cvv,
+        },
+        { headers: getAuthHeaders() }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Card payment failed');
+    }
+  }
+);
+
+// Generate Money Market details
+export const generateMoneyMarket = createAsyncThunk(
+  'cart/generateMoneyMarket',
+  async ({ paymentId }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/payments/money`,
+        { paymentId },
+        { headers: getAuthHeaders() }
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to generate Money Market details');
+    }
+  }
+);
+
 export const clearCart = createAsyncThunk(
   'cart/clearCart',
   async (bookingId, { rejectWithValue }) => {
@@ -78,6 +118,8 @@ const initialState = {
   error: null,
   checkoutLoading: false,
   checkoutError: null,
+  lastCheckout: null,
+  moneyMarket: null,
 };
 
 const cartSlice = createSlice({
@@ -104,7 +146,7 @@ const cartSlice = createSlice({
       .addCase(addToCart.fulfilled, (state, action) => {
         state.loading = false;
         state.error = null;
-        // Refresh cart after adding item
+        // The component can dispatch fetchCart after this
       })
       .addCase(addToCart.rejected, (state, action) => {
         state.loading = false;
@@ -117,7 +159,9 @@ const cartSlice = createSlice({
       })
       .addCase(fetchCart.fulfilled, (state, action) => {
         state.loading = false;
-        state.cart = action.payload.cart;
+        const payload = action.payload;
+        // Backend returns either { cart: null } when empty or the cart object directly when present
+        state.cart = payload && payload.cart !== undefined ? payload.cart : (payload && payload.bookingId ? payload : null);
         state.error = null;
       })
       .addCase(fetchCart.rejected, (state, action) => {
@@ -131,7 +175,7 @@ const cartSlice = createSlice({
       })
       .addCase(checkout.fulfilled, (state, action) => {
         state.checkoutLoading = false;
-        state.cart = null; // Clear cart after successful checkout
+        state.lastCheckout = action.payload; // Contains paymentId, referenceCode, amount, paymentMethod
         state.checkoutError = null;
       })
       .addCase(checkout.rejected, (state, action) => {
@@ -142,6 +186,33 @@ const cartSlice = createSlice({
       .addCase(clearCart.fulfilled, (state) => {
         state.cart = null;
         state.error = null;
+      });
+
+    // Payments
+    builder
+      .addCase(processCardPayment.pending, (state) => {
+        state.checkoutLoading = true;
+        state.checkoutError = null;
+      })
+      .addCase(processCardPayment.fulfilled, (state, action) => {
+        state.checkoutLoading = false;
+        state.cart = null;
+      })
+      .addCase(processCardPayment.rejected, (state, action) => {
+        state.checkoutLoading = false;
+        state.checkoutError = action.payload;
+      })
+      .addCase(generateMoneyMarket.pending, (state) => {
+        state.checkoutLoading = true;
+        state.checkoutError = null;
+      })
+      .addCase(generateMoneyMarket.fulfilled, (state, action) => {
+        state.checkoutLoading = false;
+        state.moneyMarket = action.payload;
+      })
+      .addCase(generateMoneyMarket.rejected, (state, action) => {
+        state.checkoutLoading = false;
+        state.checkoutError = action.payload;
       });
   },
 });

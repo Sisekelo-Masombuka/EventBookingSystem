@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './redux/store';
@@ -23,6 +23,7 @@ import Checkout from './pages/Checkout';
 import AdminLogin from './pages/AdminLogin';
 import AdminPortal from './pages/AdminPortal';
 import TestAdminLogin from './pages/TestAdminLogin';
+import Wishlist from './pages/Wishlist';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -33,16 +34,13 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   }
   
   if (!isAuthenticated) {
-    return <Login />;
+    // If the route is admin-only and the user isn't authenticated, send to admin login.
+    return adminOnly ? <Navigate to="/admin-login" replace /> : <Navigate to="/login" replace />;
   }
   
   if (adminOnly && user?.role !== 'Admin') {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Access Denied</h1>
-        <p className="text-gray-600">You need admin privileges to access this page.</p>
-      </div>
-    </div>;
+    // Authenticated but not an admin: redirect away from admin area.
+    return <Navigate to="/dashboard" replace />;
   }
   
   return children;
@@ -78,6 +76,14 @@ const AppContent = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/test-admin" element={<TestAdminLogin />} />
+            <Route 
+              path="/wishlist" 
+              element={
+                <ProtectedRoute>
+                  <Wishlist />
+                </ProtectedRoute>
+              }
+            />
             
             {/* Protected Routes */}
             <Route 

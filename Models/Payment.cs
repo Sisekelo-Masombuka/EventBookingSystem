@@ -26,6 +26,7 @@ namespace EventBookingSystem.Models
         public string Status { get; set; } = "Pending"; // Pending, Completed, Failed
         
         public DateTime? PaidAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
         
         // Navigation properties
         [ForeignKey("BookingId")]

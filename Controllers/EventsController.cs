@@ -78,8 +78,8 @@ namespace EventBookingSystem.Controllers
                         endDateTime = e.EndDateTime,
                         posterUrl = e.PosterUrl,
                         capacity = e.Capacity,
-                        minPrice = e.TicketTypes.Where(t => t.IsActive).Min(t => t.Price),
-                        maxPrice = e.TicketTypes.Where(t => t.IsActive).Max(t => t.Price),
+                        minPrice = e.TicketTypes.Where(t => t.IsActive).Select(t => (decimal?)t.Price).Min() ?? 0,
+                        maxPrice = e.TicketTypes.Where(t => t.IsActive).Select(t => (decimal?)t.Price).Max() ?? 0,
                         ticketTypes = e.TicketTypes.Where(t => t.IsActive).Select(t => new
                         {
                             id = t.Id,
@@ -135,6 +135,8 @@ namespace EventBookingSystem.Controllers
                     endDateTime = eventEntity.EndDateTime,
                     posterUrl = eventEntity.PosterUrl,
                     capacity = eventEntity.Capacity,
+                    minPrice = eventEntity.TicketTypes.Where(t => t.IsActive).Select(t => (decimal?)t.Price).Min() ?? 0,
+                    maxPrice = eventEntity.TicketTypes.Where(t => t.IsActive).Select(t => (decimal?)t.Price).Max() ?? 0,
                     ticketTypes = eventEntity.TicketTypes.Select(t => new
                     {
                         id = t.Id,
@@ -296,6 +298,75 @@ namespace EventBookingSystem.Controllers
                 return StatusCode(500, new { message = "An error occurred while deleting event", error = ex.Message });
             }
         }
+
+        // Ticket Types management (Admin)
+        [HttpPost("{eventId}/ticket-types")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AddTicketType(Guid eventId, [FromBody] CreateTicketTypeRequest request)
+        {
+            try
+            {
+                var ev = await _context.Events.FindAsync(eventId);
+                if (ev == null) return NotFound(new { message = "Event not found" });
+
+                var tt = new TicketType
+                {
+                    EventId = eventId,
+                    Name = request.Name,
+                    Price = request.Price,
+                    QuantityAvailable = request.QuantityAvailable,
+                    IsActive = true
+                };
+                _context.TicketTypes.Add(tt);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Ticket type added", id = tt.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to add ticket type", error = ex.Message });
+            }
+        }
+
+        [HttpPut("ticket-types/{ticketTypeId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateTicketType(Guid ticketTypeId, [FromBody] UpdateTicketTypeRequest request)
+        {
+            try
+            {
+                var tt = await _context.TicketTypes.FindAsync(ticketTypeId);
+                if (tt == null) return NotFound(new { message = "Ticket type not found" });
+
+                tt.Name = request.Name;
+                tt.Price = request.Price;
+                tt.QuantityAvailable = request.QuantityAvailable;
+                tt.IsActive = request.IsActive;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Ticket type updated" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to update ticket type", error = ex.Message });
+            }
+        }
+
+        [HttpDelete("ticket-types/{ticketTypeId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteTicketType(Guid ticketTypeId)
+        {
+            try
+            {
+                var tt = await _context.TicketTypes.FindAsync(ticketTypeId);
+                if (tt == null) return NotFound(new { message = "Ticket type not found" });
+
+                _context.TicketTypes.Remove(tt);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Ticket type deleted" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Failed to delete ticket type", error = ex.Message });
+            }
+        }
     }
 
     public class CreateEventRequest
@@ -330,6 +401,14 @@ namespace EventBookingSystem.Controllers
         public string Name { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public int QuantityAvailable { get; set; }
+    }
+
+    public class UpdateTicketTypeRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public int QuantityAvailable { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 }
 

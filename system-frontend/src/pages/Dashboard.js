@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { getCurrentUser } from '../redux/slices/authSlice';
 import { downloadTicket } from '../redux/slices/ticketsSlice';
+import axios from 'axios';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaTicketAlt, FaDownload, FaEdit, FaSignOutAlt, FaCalendarAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -10,6 +11,10 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
   const { downloading } = useSelector((state) => state.tickets);
+  const API_BASE_URL = 'https://localhost:7037/api';
+  const token = useSelector((state) => state.auth.token);
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const [bookings, setBookings] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: '',
@@ -36,6 +41,19 @@ const Dashboard = () => {
       });
     }
   }, [user]);
+
+  useEffect(() => {
+    const loadBookings = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/users/bookings`, { headers: authHeaders });
+        setBookings(res.data || []);
+      } catch (e) {
+        // keep empty but show message in UI
+        setBookings([]);
+      }
+    };
+    if (token) loadBookings();
+  }, [token]);
 
   const handleEditToggle = () => {
     setIsEditing(!isEditing);
@@ -79,28 +97,7 @@ const Dashboard = () => {
     }
   };
 
-  const mockBookings = [
-    {
-      id: '1',
-      eventTitle: 'Cape Town Jazz Festival 2025',
-      eventDate: '2025-11-14T00:00:00Z',
-      ticketType: 'VIP',
-      quantity: 2,
-      totalAmount: 1500,
-      status: 'Confirmed',
-      bookingDate: '2025-10-15T00:00:00Z',
-    },
-    {
-      id: '2',
-      eventTitle: 'Tech Conference SA 2025',
-      eventDate: '2025-11-29T00:00:00Z',
-      ticketType: 'Standard',
-      quantity: 1,
-      totalAmount: 1200,
-      status: 'Confirmed',
-      bookingDate: '2025-10-10T00:00:00Z',
-    },
-  ];
+  const hasBookings = Array.isArray(bookings) && bookings.length > 0;
 
   if (loading) {
     return <LoadingSpinner size="large" text="Loading dashboard..." />;
@@ -251,7 +248,7 @@ const Dashboard = () => {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">My Bookings</h2>
               
-              {mockBookings.length === 0 ? (
+              {!hasBookings ? (
                 <div className="text-center py-8">
                   <FaTicketAlt className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <div className="text-gray-600 text-lg font-semibold mb-2">No bookings yet</div>
@@ -259,17 +256,17 @@ const Dashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {mockBookings.map((booking) => (
-                    <div key={booking.id} className="border border-gray-200 rounded-lg p-4">
+                  {bookings.map((b) => (
+                    <div key={b.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {booking.eventTitle}
+                            {b.items?.[0]?.eventTitle}
                           </h3>
                           <div className="flex items-center text-gray-600 mb-2">
                             <FaCalendarAlt className="w-4 h-4 mr-2" />
                             <span className="text-sm">
-                              {new Date(booking.eventDate).toLocaleDateString('en-ZA', {
+                              {new Date(b.items?.[0]?.eventDate).toLocaleDateString('en-ZA', {
                                 weekday: 'long',
                                 year: 'numeric',
                                 month: 'long',
@@ -278,27 +275,27 @@ const Dashboard = () => {
                             </span>
                           </div>
                           <div className="text-sm text-gray-600 mb-2">
-                            {booking.quantity}x {booking.ticketType} tickets
+                            {b.items?.reduce((sum, it) => sum + (it.quantity || 0), 0)}x tickets
                           </div>
                           <div className="text-sm text-gray-500">
-                            Booked on {new Date(booking.bookingDate).toLocaleDateString('en-ZA')}
+                            Booked on {new Date(b.bookingDate).toLocaleDateString('en-ZA')}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold text-red-600 mb-2">
-                            R{booking.totalAmount.toLocaleString()}
+                            R{(b.totalAmount || 0).toLocaleString()}
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              booking.status === 'Confirmed' 
+                              b.status === 'Confirmed' 
                                 ? 'bg-green-100 text-green-800' 
                                 : 'bg-yellow-100 text-yellow-800'
                             }`}>
-                              {booking.status}
+                              {b.status}
                             </span>
-                            {booking.status === 'Confirmed' && (
+                            {b.status === 'Confirmed' && (
                               <button
-                                onClick={() => handleDownloadTicket(booking.id)}
+                                onClick={() => handleDownloadTicket(b.id)}
                                 disabled={downloading}
                                 className="flex items-center text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                               >

@@ -2,12 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchEvents, fetchCities, fetchCategories, setFilters, clearFilters, setCurrentPage } from '../redux/slices/eventsSlice';
-import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaTicketAlt, FaFilter, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { fetchFavorites, addFavorite, removeFavorite } from '../redux/slices/favoritesSlice';
+import { fetchEventReviews } from '../redux/slices/reviewsSlice';
+import { FaSearch, FaMapMarkerAlt, FaCalendarAlt, FaTicketAlt, FaFilter, FaTimes, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const BrowseEvents = () => {
   const dispatch = useDispatch();
   const { events, cities, categories, filters, pagination, loading, error } = useSelector((state) => state.events);
+  const { items: favoriteItems } = useSelector((state) => state.favorites);
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { byEvent: reviewsByEvent } = useSelector((state) => state.reviews);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState(filters.search);
 
@@ -15,11 +20,37 @@ const BrowseEvents = () => {
     dispatch(fetchEvents(filters));
     dispatch(fetchCities());
     dispatch(fetchCategories());
-  }, [dispatch, filters]);
+    if (isAuthenticated) dispatch(fetchFavorites());
+  }, [dispatch, filters, isAuthenticated]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     dispatch(setFilters({ search: searchTerm, page: 1 }));
+  };
+
+  const RatingStars = ({ eventId }) => {
+    useEffect(() => {
+      // Fetch ratings once per event card
+      if (!reviewsByEvent?.[eventId]) {
+        dispatch(fetchEventReviews(eventId));
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eventId]);
+
+    const data = reviewsByEvent?.[eventId];
+    if (!data || typeof data.averageRating === 'undefined') return null;
+    const avg = data.averageRating || 0;
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-yellow-500">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <span key={i}>{i + 1 <= Math.round(avg) ? '★' : '☆'}</span>
+          ))}
+        </span>
+        <span className="text-gray-600">{avg.toFixed(1)}</span>
+        <span className="text-gray-400">({data.count || 0})</span>
+      </div>
+    );
   };
 
   const handleFilterChange = (key, value) => {
@@ -29,6 +60,33 @@ const BrowseEvents = () => {
   const handleClearFilters = () => {
     dispatch(clearFilters());
     setSearchTerm('');
+  };
+
+  const handleUseMyLocation = async () => {
+    if (!('geolocation' in navigator)) return;
+    try {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+      }).then(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        // Use Nominatim reverse geocoding (public) to find city name
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        const foundCity = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality;
+        if (foundCity) {
+          // Match against backend-provided cities case-insensitively
+          const match = cities.find(c => c.toLowerCase() === foundCity.toLowerCase()) ||
+                        cities.find(c => foundCity.toLowerCase().includes(c.toLowerCase())) ||
+                        cities.find(c => c.toLowerCase().includes(foundCity.toLowerCase()));
+          if (match) {
+            dispatch(setFilters({ city: match, page: 1 }));
+          }
+        }
+      });
+    } catch (e) {
+      // Silently ignore location errors for now
+    }
   };
 
   const handlePageChange = (page) => {
@@ -51,6 +109,18 @@ const BrowseEvents = () => {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const isFavorited = (eventId) => favoriteItems?.some(f => f.eventId === eventId);
+
+  const toggleFavorite = async (eventId) => {
+    if (!isAuthenticated) return; // optional: prompt login
+    if (isFavorited(eventId)) {
+      await dispatch(removeFavorite(eventId));
+    } else {
+      await dispatch(addFavorite(eventId));
+    }
+    await dispatch(fetchFavorites());
   };
 
   return (
@@ -127,6 +197,13 @@ const BrowseEvents = () => {
                       </option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={handleUseMyLocation}
+                    className="mt-2 w-full text-sm text-red-600 hover:text-red-700 underline"
+                  >
+                    Use My Location
+                  </button>
                 </div>
 
                 {/* Category Filter */}
@@ -231,6 +308,15 @@ const BrowseEvents = () => {
                         <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
                           {event.category}
                         </div>
+                        {isAuthenticated && (
+                          <button
+                            onClick={() => toggleFavorite(event.id)}
+                            className={`absolute top-4 right-4 p-2 rounded-full shadow ${isFavorited(event.id) ? 'bg-red-600 text-white' : 'bg-white text-red-600'} hover:opacity-90`}
+                            aria-label="Toggle favorite"
+                          >
+                            <FaHeart className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                       <div className="p-6">
                         <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
@@ -248,6 +334,7 @@ const BrowseEvents = () => {
                           <div className="text-lg font-bold text-red-600">
                             From {formatPrice(event.minPrice)}
                           </div>
+                          <div className="mr-2"><RatingStars eventId={event.id} /></div>
                           <Link
                             to={`/events/${event.id}`}
                             className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm font-semibold"

@@ -22,29 +22,23 @@ namespace EventBookingSystem.Models
         [MaxLength(255)]
         public string Email { get; set; } = string.Empty;
         
-        [Required]
         [MaxLength(20)]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
         
-        [Required]
-        [MaxLength(10)]
-        public string Gender { get; set; } = string.Empty;
+        [MaxLength(30)]
+        public string? Gender { get; set; }
         
-        [Required]
         [MaxLength(255)]
-        public string StreetAddress { get; set; } = string.Empty;
+        public string? StreetAddress { get; set; }
         
-        [Required]
         [MaxLength(100)]
-        public string City { get; set; } = string.Empty;
+        public string? City { get; set; }
         
-        [Required]
         [MaxLength(20)]
-        public string PostalCode { get; set; } = string.Empty;
+        public string? PostalCode { get; set; }
         
-        [Required]
         [MaxLength(100)]
-        public string Country { get; set; } = string.Empty;
+        public string? Country { get; set; }
         
         [Required]
         public string PasswordHash { get; set; } = string.Empty;
@@ -57,6 +51,7 @@ namespace EventBookingSystem.Models
         
         // Navigation properties
         public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
+        public virtual ICollection<Favorite> Favorites { get; set; } = new List<Favorite>();
     }
 }
 

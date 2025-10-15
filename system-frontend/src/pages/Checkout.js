@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchCart, checkout } from '../redux/slices/cartSlice';
+import { fetchCart, checkout, processCardPayment, generateMoneyMarket } from '../redux/slices/cartSlice';
 import { FaCreditCard, FaQrcode, FaLock, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const Checkout = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { cart, loading, checkoutLoading } = useSelector((state) => state.cart);
+  const { cart, loading, checkoutLoading, lastCheckout, moneyMarket } = useSelector((state) => state.cart);
   const { user } = useSelector((state) => state.auth);
   
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -62,13 +62,28 @@ const Checkout = () => {
     setIsProcessing(true);
     
     try {
-      await dispatch(checkout({
+      const methodForApi = paymentMethod === 'money' ? 'MoneyMarket' : paymentMethod;
+      const checkoutResult = await dispatch(checkout({
         bookingId: cart.bookingId,
-        paymentMethod: paymentMethod
+        paymentMethod: methodForApi
       })).unwrap();
-      
-      toast.success('Payment processed successfully!');
-      navigate('/dashboard');
+
+      if (paymentMethod === 'card') {
+        // Immediately process simulated card payment
+        await dispatch(processCardPayment({
+          paymentId: checkoutResult.paymentId,
+          card: cardDetails,
+        })).unwrap();
+        toast.success('Payment processed successfully!');
+        navigate('/dashboard');
+      } else if (paymentMethod === 'money') {
+        // Generate QR/reference and show to user
+        const details = await dispatch(generateMoneyMarket({
+          paymentId: checkoutResult.paymentId,
+        })).unwrap();
+        toast.success('Money Market reference generated');
+        // Stay on page to show details section
+      }
     } catch (error) {
       toast.error(error || 'Payment failed. Please try again.');
     } finally {
@@ -269,6 +284,18 @@ const Checkout = () => {
                 )}
               </div>
             </div>
+
+            {paymentMethod === 'money' && moneyMarket && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Money Market Details</h2>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <div className="flex justify-between"><span>Reference Code</span><span className="font-mono font-semibold">{moneyMarket.referenceCode}</span></div>
+                  <div className="flex justify-between"><span>Amount</span><span className="font-semibold">R{(moneyMarket.amount || 0).toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span>Expires At</span><span>{new Date(moneyMarket.expiresAt).toLocaleString()}</span></div>
+                </div>
+                <div className="mt-3 text-sm text-gray-600">{moneyMarket.instructions}</div>
+              </div>
+            )}
           </div>
 
           {/* Order Summary */}

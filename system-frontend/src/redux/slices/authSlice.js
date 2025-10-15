@@ -23,8 +23,7 @@ export const register = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/auth/register`, userData);
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Do NOT auto-login on registration; require explicit login
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Registration failed');
@@ -60,7 +59,7 @@ export const getCurrentUser = createAsyncThunk(
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('No token found');
+        return rejectWithValue('No token');
       }
       
       const response = await axios.get(`${API_BASE_URL}/users/me`, {
@@ -68,7 +67,13 @@ export const getCurrentUser = createAsyncThunk(
       });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to get user');
+      const status = error.response?.status;
+      const message = error.response?.data?.message || 'Failed to get user';
+      // Distinguish unauthorized from transient errors
+      if (status === 401 || status === 403) {
+        return rejectWithValue('unauthorized');
+      }
+      return rejectWithValue(message);
     }
   }
 );
@@ -122,9 +127,7 @@ const authSlice = createSlice({
       })
       .addCase(register.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.isAuthenticated = true;
+        // Do NOT set user/token/isAuthenticated here to avoid auto-login
         state.error = null;
       })
       .addCase(register.rejected, (state, action) => {
@@ -158,11 +161,18 @@ const authSlice = createSlice({
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        if (action.payload === 'unauthorized' || action.payload === 'No token') {
+          // Clear invalid token to prevent loops
+          state.user = null;
+          state.token = null;
+          state.isAuthenticated = false;
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          state.error = null; // silent
+        } else {
+          // Non-auth errors: keep user logged in, silent failure
+          state.error = null;
+        }
       });
   },
 });
