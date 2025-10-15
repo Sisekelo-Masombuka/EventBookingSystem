@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_BASE_URL = 'https://localhost:7037/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://eventbookingsystem-production-7385.up.railway.app/api';
 
 // Async thunks
 export const fetchEvents = createAsyncThunk(
