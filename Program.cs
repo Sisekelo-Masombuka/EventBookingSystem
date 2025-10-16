@@ -18,7 +18,17 @@ builder.Services.AddSwaggerGen();
 
 // Add Entity Framework
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptionsAction: sqlOptions =>
+        {
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5, // try up to 5 times
+                maxRetryDelay: TimeSpan.FromSeconds(10), // wait 10 seconds between tries
+                errorNumbersToAdd: null // apply to all transient errors
+            );
+        }));
+
 
 // Add PDF Service
 builder.Services.AddScoped<ITicketPdfService, TicketPdfService>();
