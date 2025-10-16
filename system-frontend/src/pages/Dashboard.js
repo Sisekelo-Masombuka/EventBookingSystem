@@ -11,7 +11,7 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
   const { downloading } = useSelector((state) => state.tickets);
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://eventbookingsystem-production-7385.up.railway.app/api';
+  const API_BASE_URL = 'https://localhost:7037/api';
   const token = useSelector((state) => state.auth.token);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
   const [bookings, setBookings] = useState([]);

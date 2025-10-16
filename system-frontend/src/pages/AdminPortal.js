@@ -18,7 +18,7 @@ const AdminPortal = () => {
   const [error, setError] = useState(null);
 
   // API base
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://eventbookingsystem-production-7385.up.railway.app/api';
+  const API_BASE_URL = 'https://localhost:7037/api';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   // Events state (admin list)
