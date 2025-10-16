@@ -135,7 +135,7 @@ const Footer = () => {
               © 2025 Mzansi Moments Hub. All rights reserved.
             </div>
             <div className="text-gray-400 text-sm">
-              Built with ❤️ in South Africa
+              Enlightify Sol Plaatje University Students
             </div>
           </div>
         </div>

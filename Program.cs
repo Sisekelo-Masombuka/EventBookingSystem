@@ -8,9 +8,6 @@ using System.Text;
 
 //
 var builder = WebApplication.CreateBuilder(args);
-//cuba 3
-builder.Services.AddControllers();
-
 
 // Add services to the container.
 

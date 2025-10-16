@@ -21,11 +21,20 @@ const Dashboard = () => {
     lastName: '',
     middleName: '',
     phoneNumber: '',
+    gender: '',
     streetAddress: '',
     city: '',
     postalCode: '',
     country: '',
   });
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '' });
+
+  // Always fetch fresh profile so signup details appear without retyping
+  useEffect(() => {
+    if (token) {
+      dispatch(getCurrentUser());
+    }
+  }, [dispatch, token]);
 
   useEffect(() => {
     if (user) {
@@ -34,6 +43,7 @@ const Dashboard = () => {
         lastName: user.lastName || '',
         middleName: user.middleName || '',
         phoneNumber: user.phoneNumber || '',
+        gender: user.gender || '',
         streetAddress: user.streetAddress || '',
         city: user.city || '',
         postalCode: user.postalCode || '',
@@ -80,11 +90,36 @@ const Dashboard = () => {
 
   const handleSaveProfile = async () => {
     try {
-      // Here you would dispatch an update profile action
+      await axios.put(`${API_BASE_URL}/users/me`, {
+        firstName: editForm.firstName,
+        middleName: editForm.middleName || null,
+        lastName: editForm.lastName,
+        phoneNumber: editForm.phoneNumber,
+        gender: editForm.gender || '',
+        streetAddress: editForm.streetAddress,
+        city: editForm.city,
+        postalCode: editForm.postalCode,
+        country: editForm.country,
+      }, { headers: authHeaders });
+      await dispatch(getCurrentUser());
       toast.success('Profile updated successfully!');
       setIsEditing(false);
     } catch (error) {
-      toast.error('Failed to update profile');
+      toast.error(error?.response?.data?.message || 'Failed to update profile');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`${API_BASE_URL}/users/change-password`, {
+        currentPassword: pwdForm.currentPassword,
+        newPassword: pwdForm.newPassword,
+      }, { headers: authHeaders });
+      toast.success('Password changed successfully');
+      setPwdForm({ currentPassword: '', newPassword: '' });
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to change password');
     }
   };
 
@@ -160,6 +195,18 @@ const Dashboard = () => {
                       type="text"
                       name="lastName"
                       value={editForm.lastName}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gender
+                    </label>
+                    <input
+                      type="text"
+                      name="gender"
+                      value={editForm.gender}
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     />

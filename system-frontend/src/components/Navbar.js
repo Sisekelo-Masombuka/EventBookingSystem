@@ -12,6 +12,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
+  const isAdmin = isAuthenticated && user?.role === 'Admin';
   const { cart } = useSelector((state) => state.cart);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -42,7 +43,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center">
+          <Link to={isAdmin ? "/admin" : "/"} className="flex items-center" onClick={()=> setIsMenuOpen(false)}>
             <div className="flex items-center">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center mr-3">
                 <span className="text-white font-bold text-lg">M</span>
@@ -60,11 +61,12 @@ const Navbar = () => {
                   ? 'text-red-600 bg-red-50'
                   : 'text-gray-700 hover:text-red-600'
               }`}
+              style={{ display: isAdmin ? 'none' : undefined }}
             >
               Browse Events
             </Link>
 
-            {isAuthenticated && (
+            {isAuthenticated && !isAdmin && (
               <Link
                 to="/dashboard"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
@@ -77,7 +79,7 @@ const Navbar = () => {
               </Link>
             )}
 
-            {isAuthenticated && (
+            {isAuthenticated && !isAdmin && (
               <Link
                 to="/wishlist"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
@@ -91,6 +93,7 @@ const Navbar = () => {
             )}
 
             {/* Cart */}
+            {!isAdmin && (
             <Link
               to="/basket"
               className="relative px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-red-600 transition-colors duration-200"
@@ -102,6 +105,7 @@ const Navbar = () => {
                 </span>
               )}
             </Link>
+            )}
 
             {/* User Menu */}
             {isAuthenticated ? (
@@ -153,59 +157,63 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 border-t">
-              <Link
-                to="/events"
-                onClick={() => setIsMenuOpen(false)}
-                className={`block px-3 py-2 rounded-md text-base font-medium ${
-                  isActive('/events')
-                    ? 'text-red-600 bg-red-50'
-                    : 'text-gray-700 hover:text-red-600'
-                }`}
-              >
-                Browse Events
-              </Link>
+              {!isAdmin && (
+                <>
+                  <Link
+                    to="/events"
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`block px-3 py-2 rounded-md text-base font-medium ${
+                      isActive('/events')
+                        ? 'text-red-600 bg-red-50'
+                        : 'text-gray-700 hover:text-red-600'
+                    }`}
+                  >
+                    Browse Events
+                  </Link>
 
-              {isAuthenticated && (
-                <Link
-                  to="/dashboard"
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${
-                    isActive('/dashboard')
-                      ? 'text-red-600 bg-red-50'
-                      : 'text-gray-700 hover:text-red-600'
-                  }`}
-                >
-                  Dashboard
-                </Link>
+                  {isAuthenticated && (
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`block px-3 py-2 rounded-md text-base font-medium ${
+                        isActive('/dashboard')
+                          ? 'text-red-600 bg-red-50'
+                          : 'text-gray-700 hover:text-red-600'
+                      }`}
+                    >
+                      Dashboard
+                    </Link>
+                  )}
+
+                  {isAuthenticated && (
+                    <Link
+                      to="/wishlist"
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`block px-3 py-2 rounded-md text-base font-medium ${
+                        isActive('/wishlist')
+                          ? 'text-red-600 bg-red-50'
+                          : 'text-gray-700 hover:text-red-600'
+                      }`}
+                    >
+                      Wishlist
+                    </Link>
+                  )}
+
+                  <Link
+                    to="/basket"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-red-600"
+                  >
+                    <FaShoppingCart className="w-4 h-4 mr-2" />
+                    Basket
+                    {getCartItemCount() > 0 && (
+                      <span className="ml-2 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {getCartItemCount()}
+                      </span>
+                    )}
+                  </Link>
+                </>
               )}
-
-              {isAuthenticated && (
-                <Link
-                  to="/wishlist"
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${
-                    isActive('/wishlist')
-                      ? 'text-red-600 bg-red-50'
-                      : 'text-gray-700 hover:text-red-600'
-                  }`}
-                >
-                  Wishlist
-                </Link>
-              )}
-
-              <Link
-                to="/basket"
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-red-600"
-              >
-                <FaShoppingCart className="w-4 h-4 mr-2" />
-                Basket
-                {getCartItemCount() > 0 && (
-                  <span className="ml-2 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {getCartItemCount()}
-                  </span>
-                )}
-              </Link>
 
               {isAuthenticated ? (
                 <div className="border-t border-gray-200 pt-4">

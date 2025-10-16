@@ -29,7 +29,7 @@ namespace EventBookingSystem.Controllers
                 var totalUsers = await _context.Users.CountAsync(u => u.Role == "User");
                 var totalRevenue = await _context.Payments
                     .Where(p => p.Status == "Completed")
-                    .SumAsync(p => p.Amount);
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0m;
 
                 var recentBookings = await _context.Bookings
                     .Include(b => b.User)
@@ -42,7 +42,7 @@ namespace EventBookingSystem.Controllers
                     {
                         id = b.Id,
                         userName = $"{b.User.FirstName} {b.User.LastName}",
-                        eventTitle = b.BookingItems.First().TicketType.Event.Title,
+                        eventTitle = b.BookingItems.OrderBy(x => x.Id).Select(x => x.TicketType.Event.Title).FirstOrDefault(),
                         totalAmount = b.TotalAmount,
                         status = b.Status,
                         bookingDate = b.BookingDate

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchCart, checkout, processCardPayment, generateMoneyMarket } from '../redux/slices/cartSlice';
@@ -20,6 +21,35 @@ const Checkout = () => {
     cvv: '',
   });
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const downloadMoneyMarketPDF = (details) => {
+    if (!details) return;
+    const d = details;
+    const doc = new jsPDF();
+    const now = new Date();
+    doc.setFontSize(18);
+    doc.text('Money Market Payment', 105, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Generated: ${now.toLocaleString()}`, 20, 30);
+    doc.line(20, 34, 190, 34);
+    doc.setFontSize(14);
+    doc.text('Payment Details', 20, 44);
+    doc.setFontSize(12);
+    doc.text(`Reference Code: ${d.referenceCode || ''}`, 20, 54);
+    doc.text(`Amount: R${(d.amount || 0).toLocaleString()}`, 20, 62);
+    if (d.expiresAt) {
+      doc.text(`Expires At: ${new Date(d.expiresAt).toLocaleString()}`, 20, 70);
+    }
+    if (d.instructions) {
+      const split = doc.splitTextToSize(String(d.instructions), 170);
+      doc.text('Instructions:', 20, 82);
+      doc.text(split, 20, 90);
+    }
+    if (d.qrCodeDataUrl) {
+      try { doc.addImage(d.qrCodeDataUrl, 'PNG', 140, 44, 50, 50); } catch {}
+    }
+    doc.save(`MoneyMarket_${d.referenceCode || 'reference'}.pdf`);
+  };
 
   useEffect(() => {
     dispatch(fetchCart());
@@ -82,6 +112,8 @@ const Checkout = () => {
           paymentId: checkoutResult.paymentId,
         })).unwrap();
         toast.success('Money Market reference generated');
+        // Auto-generate PDF for the customer
+        downloadMoneyMarketPDF(details);
         // Stay on page to show details section
       }
     } catch (error) {

@@ -51,6 +51,8 @@ const Login = () => {
     try {
       await dispatch(login(formData)).unwrap();
       toast.success('Login successful!');
+      // Navigate immediately to dashboard to avoid any timing issues
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       // Error is handled by useEffect above
     }

@@ -24,44 +24,53 @@ import AdminLogin from './pages/AdminLogin';
 import AdminPortal from './pages/AdminPortal';
 import TestAdminLogin from './pages/TestAdminLogin';
 import Wishlist from './pages/Wishlist';
+import About from './pages/About';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import Help from './pages/Help';
+import Contact from './pages/Contact';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
-  
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-  
+
+  // If not authenticated, route to the correct login
   if (!isAuthenticated) {
-    // If the route is admin-only and the user isn't authenticated, send to admin login.
     return adminOnly ? <Navigate to="/admin-login" replace /> : <Navigate to="/login" replace />;
   }
-  
-  if (adminOnly && user?.role !== 'Admin') {
-    // Authenticated but not an admin: redirect away from admin area.
+
+  // If authenticated and route is NOT admin-only, allow immediately (avoid spinner flicker)
+  if (!adminOnly) {
+    return children;
+  }
+
+  // Admin-only: if we're still resolving user, show spinner briefly
+  if (loading && !user) {
+    return <LoadingSpinner />;
+  }
+
+  // Enforce admin role
+  if (user?.role !== 'Admin') {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return children;
 };
 
 // App Content Component
 const AppContent = () => {
   const dispatch = useDispatch();
-  const { loading } = useSelector((state) => state.auth);
+  const { loading, isAuthenticated, user } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    // Check if user is logged in on app load
+    // Fetch current user only if we have a token but no user in state
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && !user) {
       dispatch(getCurrentUser());
     }
-  }, [dispatch]);
+  }, [dispatch, user]);
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  // Do not block entire app on loading; route guards will handle auth
 
   return (
     <Router>
@@ -70,12 +79,17 @@ const AppContent = () => {
         <main>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={isAuthenticated && user?.role === 'Admin' ? <Navigate to="/admin" replace /> : <HomePage />} />
             <Route path="/events" element={<BrowseEvents />} />
             <Route path="/events/:id" element={<EventDetails />} />
+            <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/test-admin" element={<TestAdminLogin />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/contact" element={<Contact />} />
             <Route 
               path="/wishlist" 
               element={
@@ -126,7 +140,7 @@ const AppContent = () => {
             />
           </Routes>
         </main>
-        <Footer />
+        {!(isAuthenticated && user?.role === 'Admin') && <Footer />}
         <Toaster 
           position="top-right"
           toastOptions={{

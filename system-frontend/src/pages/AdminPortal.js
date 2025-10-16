@@ -3,16 +3,17 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaPlus, FaEdit, FaTrash, FaUsers, FaTicketAlt, FaChartBar, FaCog, FaSignOutAlt } from 'react-icons/fa';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 import { toast } from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { logout } from '../redux/slices/authSlice';
-import { fetchOverview, fetchAdminBookings } from '../redux/slices/adminSlice';
+import { fetchOverview, fetchAdminBookings, changeAdminPassword, updateAdminProfile, resetAdminPassword } from '../redux/slices/adminSlice';
 
 const AdminPortal = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, token } = useSelector((state) => state.auth);
-  const { overview, bookings, pagination, loading } = useSelector((state) => state.admin);
+  const { overview, bookings, pagination, loading, actionLoading } = useSelector((state) => state.admin);
   const [activeTab, setActiveTab] = useState('overview');
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [error, setError] = useState(null);
@@ -48,10 +49,65 @@ const AdminPortal = () => {
   const [ticketForm, setTicketForm] = useState({ name: '', price: 0, quantityAvailable: 0, isActive: true });
   const [editingTicketId, setEditingTicketId] = useState(null);
 
+  // Settings state
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '' });
+  const [profileForm, setProfileForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '' });
+  const [promoteForm, setPromoteForm] = useState({ email: '', newPassword: '' });
+
+  // Derived datasets for charts
+  const bookingsPerEventData = React.useMemo(() => {
+    const stats = overview?.eventStats || [];
+    return stats.slice(0, 12).map(e => ({ name: e.title, bookings: e.soldTickets || 0 }));
+  }, [overview]);
+
+  const revenueTrendData = React.useMemo(() => {
+    const list = bookings || [];
+    const map = new Map();
+    list.forEach(b => {
+      // use paidAt if available and payment status Completed, otherwise bookingDate
+      const paid = b.payment?.status === 'Completed' && b.payment?.paidAt ? b.payment.paidAt : b.bookingDate;
+      if (!paid) return;
+      const d = new Date(paid);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      map.set(key, (map.get(key) || 0) + (b.totalAmount || 0));
+    });
+    const arr = Array.from(map.entries()).sort(([a],[b]) => a.localeCompare(b))
+      .map(([k,v]) => ({ month: k, revenue: v }));
+    return arr.slice(-12);
+  }, [bookings]);
+
+  const userActivityData = React.useMemo(() => {
+    const list = bookings || [];
+    const map = new Map();
+    list.forEach(b => {
+      const d = new Date(b.bookingDate);
+      const key = d.toISOString().slice(0,10);
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    const arr = Array.from(map.entries()).sort(([a],[b]) => a.localeCompare(b))
+      .map(([k,v]) => ({ day: k, bookings: v }));
+    return arr.slice(-30);
+  }, [bookings]);
+
   useEffect(() => {
-    dispatch(fetchOverview());
-    dispatch(fetchAdminBookings({ page: 1, pageSize: 20 }));
-  }, [dispatch]);
+    if (activeTab === 'settings' && user) {
+      setProfileForm({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phoneNumber: user.phoneNumber || ''
+      });
+    }
+  }, [activeTab, user]);
+
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      dispatch(fetchOverview());
+    }
+    if (activeTab === 'bookings') {
+      dispatch(fetchAdminBookings({ page: 1, pageSize: 20 }));
+    }
+  }, [dispatch, activeTab]);
 
   // Fetch events when Events tab is active
   useEffect(() => {
@@ -73,6 +129,7 @@ const AdminPortal = () => {
         setLoadingLocal(false);
       }
     };
+
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, eventsPage, eventsPageSize]);
@@ -138,6 +195,39 @@ const AdminPortal = () => {
       setTicketTypes(res.data.ticketTypes || []);
     } catch (e) {
       toast.error('Failed to delete ticket type');
+    }
+  };
+
+  // Settings handlers (component scope)
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    try {
+      await dispatch(changeAdminPassword({ currentPassword: pwdForm.currentPassword, newPassword: pwdForm.newPassword })).unwrap();
+      toast.success('Password changed');
+      setPwdForm({ currentPassword: '', newPassword: '' });
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : 'Failed to change password');
+    }
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    try {
+      await dispatch(updateAdminProfile(profileForm)).unwrap();
+      toast.success('Profile updated');
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : 'Failed to update profile');
+    }
+  };
+
+  const handlePromoteAdmin = async (e) => {
+    e.preventDefault();
+    try {
+      await dispatch(resetAdminPassword(promoteForm)).unwrap();
+      toast.success('Admin created/promoted');
+      setPromoteForm({ email: '', newPassword: '' });
+    } catch (err) {
+      toast.error(typeof err === 'string' ? err : 'Failed to create/promote admin');
     }
   };
 
@@ -435,6 +525,135 @@ const AdminPortal = () => {
                       </tbody>
                     </table>
                   </div>
+                </div>
+
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Bookings per Event */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Bookings per Event</h3>
+                    <div style={{ width: '100%', height: 280 }}>
+                      <ResponsiveContainer>
+                        <BarChart data={bookingsPerEventData} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" angle={-20} textAnchor="end" interval={0} height={60} tick={{ fontSize: 12 }} />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="bookings" fill="#ef4444" name="Bookings" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Revenue Trend */}
+                  <div className="bg-white rounded-lg shadow-sm p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trends (last 12 months)</h3>
+                    <div style={{ width: '100%', height: 280 }}>
+                      <ResponsiveContainer>
+                        <LineChart data={revenueTrendData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <Tooltip formatter={(v)=>`R ${Number(v).toLocaleString()}`} />
+                          <Legend />
+                          <Line type="monotone" dataKey="revenue" stroke="#16a34a" name="Revenue" strokeWidth={2} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Activity */}
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">User Activity (bookings last 30 days)</h3>
+                  <div style={{ width: '100%', height: 280 }}>
+                    <ResponsiveContainer>
+                      <AreaChart data={userActivityData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                        <defs>
+                          <linearGradient id="colorAct" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.5}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="day" />
+                        <YAxis />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="bookings" stroke="#ef4444" fillOpacity={1} fill="url(#colorAct)" name="Bookings" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Settings Tab */}
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Change Password */}
+                  <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
+                    <form onSubmit={handleChangePassword} className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-700 mb-1">Current Password</label>
+                        <input type="password" value={pwdForm.currentPassword} onChange={(e)=>setPwdForm(p=>({...p,currentPassword:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-700 mb-1">New Password</label>
+                        <input type="password" value={pwdForm.newPassword} onChange={(e)=>setPwdForm(p=>({...p,newPassword:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                      </div>
+                      <button type="submit" disabled={actionLoading} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50">Update Password</button>
+                    </form>
+                  </div>
+
+                  {/* Update Profile */}
+                  <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Update Profile</h3>
+                    <form onSubmit={handleUpdateProfile} className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm text-gray-700 mb-1">First Name</label>
+                          <input value={profileForm.firstName} onChange={(e)=>setProfileForm(p=>({...p,firstName:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-700 mb-1">Last Name</label>
+                          <input value={profileForm.lastName} onChange={(e)=>setProfileForm(p=>({...p,lastName:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-700 mb-1">Email</label>
+                          <input type="email" value={profileForm.email} onChange={(e)=>setProfileForm(p=>({...p,email:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-700 mb-1">Phone</label>
+                          <input value={profileForm.phoneNumber} onChange={(e)=>setProfileForm(p=>({...p,phoneNumber:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" />
+                        </div>
+                      </div>
+                      <button type="submit" disabled={actionLoading} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50">Save Profile</button>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Promote/Create Admin */}
+                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Create/Promote Admin</h3>
+                  <form onSubmit={handlePromoteAdmin} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-1">
+                      <label className="block text-sm text-gray-700 mb-1">Email</label>
+                      <input type="email" value={promoteForm.email} onChange={(e)=>setPromoteForm(p=>({...p,email:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" placeholder="admin@example.com" required />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-sm text-gray-700 mb-1">New Password</label>
+                      <input type="password" value={promoteForm.newPassword} onChange={(e)=>setPromoteForm(p=>({...p,newPassword:e.target.value}))} className="w-full border border-gray-300 rounded px-3 py-2" required />
+                    </div>
+                    <div className="md:col-span-1 flex items-end">
+                      <button type="submit" disabled={actionLoading} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50">Create/Promote</button>
+                    </div>
+                  </form>
+                  <p className="text-xs text-gray-500 mt-2">If the user exists, this will set their role to Admin and reset the password. Otherwise, register a user first, then promote here.</p>
                 </div>
               </div>
             )}

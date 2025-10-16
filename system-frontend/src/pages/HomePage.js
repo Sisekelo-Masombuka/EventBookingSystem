@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchEvents } from '../redux/slices/eventsSlice';
+import { toast } from 'react-hot-toast';
 import { FaTicketAlt, FaMapMarkerAlt, FaCalendarAlt, FaUsers, FaCreditCard, FaQrcode, FaDownload, FaStar, FaArrowRight } from 'react-icons/fa';
 
 const HomePage = () => {
+  const dispatch = useDispatch();
+  const { events } = useSelector((state) => state.events);
   const features = [
     {
       icon: <FaTicketAlt className="w-8 h-8 text-red-600" />,
@@ -26,32 +31,28 @@ const HomePage = () => {
     }
   ];
 
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: 'Cape Town Jazz Festival 2025',
-      date: '2025-11-14',
-      location: 'Cape Town',
-      price: 750,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 2,
-      title: 'Tech Conference SA 2025',
-      date: '2025-11-29',
-      location: 'Johannesburg',
-      price: 1200,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 3,
-      title: 'Springbok Rugby Match',
-      date: '2025-12-07',
-      location: 'Durban',
-      price: 450,
-      image: '/api/placeholder/300/200'
-    }
-  ];
+  useEffect(() => {
+    // Load a small set for featured strip (pageSize 10)
+    dispatch(fetchEvents({ page: 1, pageSize: 10 }));
+  }, [dispatch]);
+
+  // Removed live metrics fetch; using static homepage stats
+
+  // One-time hint for Ma'am about Admin Portal location
+  useEffect(() => {
+    try {
+      const key = 'shownAdminPortalHint';
+      if (!localStorage.getItem(key)) {
+        toast((t) => (
+          <div className="text-sm">
+            <div className="font-semibold">Welcome</div>
+            <div>Ma'am, you will find the Admin Portal at the footer.</div>
+          </div>
+        ), { duration: 6000 });
+        localStorage.setItem(key, '1');
+      }
+    } catch {}
+  }, []);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -134,7 +135,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Upcoming Events Section */}
+      {/* Featured Events Section */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -146,39 +147,58 @@ const HomePage = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {upcomingEvents.map((event) => (
-              <div key={event.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200">
-                <div className="h-48 bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
-                  <FaTicketAlt className="w-16 h-16 text-white opacity-50" />
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {event.title}
-                  </h3>
-                  <div className="flex items-center text-gray-600 mb-2">
-                    <FaMapMarkerAlt className="w-4 h-4 mr-2 text-red-600" />
-                    <span className="text-sm">{event.location}</span>
-                  </div>
-                  <div className="flex items-center text-gray-600 mb-4">
-                    <FaCalendarAlt className="w-4 h-4 mr-2 text-red-600" />
-                    <span className="text-sm">{formatDate(event.date)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="text-lg font-bold text-red-600">
-                      From {formatPrice(event.price)}
+          {/* Horizontal auto-scroll strip */}
+          <div className="relative overflow-hidden">
+            <div className="whitespace-nowrap" style={{ display: 'flex' }}>
+              <div className="flex" style={{ animation: 'scroll-left 28s linear infinite' }}>
+                {[...events.slice(0, 10), ...events.slice(0, 10)].map((ev, idx) => (
+                  <Link
+                    to={`/events/${ev.id}`}
+                    key={`${ev.id}-${idx}`}
+                    className="mr-4 last:mr-0"
+                    style={{ minWidth: 320, width: 320 }}
+                  >
+                    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200">
+                      <div className="h-44 bg-gray-200 relative flex items-center justify-center">
+                        {ev.posterUrl ? (
+                          <img src={ev.posterUrl} alt={ev.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+                            <FaTicketAlt className="w-16 h-16 text-white opacity-50" />
+                          </div>
+                        )}
+                        <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-0.5 rounded-full text-xs font-semibold">
+                          {ev.category}
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">{ev.title}</h3>
+                        <div className="flex items-center text-gray-600 mb-1">
+                          <FaMapMarkerAlt className="w-4 h-4 mr-2 text-red-600" />
+                          <span className="text-sm">{ev.locationCity}</span>
+                        </div>
+                        <div className="flex items-center text-gray-600 mb-3">
+                          <FaCalendarAlt className="w-4 h-4 mr-2 text-red-600" />
+                          <span className="text-sm">{formatDate(ev.startDateTime)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-red-600 font-bold">From {formatPrice(ev.minPrice || 0)}</div>
+                          <span className="inline-block bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold">View Details</span>
+                        </div>
+                      </div>
                     </div>
-                    <Link
-                      to={`/events/${event.id}`}
-                      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm font-semibold"
-                    >
-                      View Details
-                    </Link>
-                  </div>
-                </div>
+                  </Link>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
+
+          <style>{`
+            @keyframes scroll-left {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+          `}</style>
 
           <div className="text-center mt-12">
             <Link

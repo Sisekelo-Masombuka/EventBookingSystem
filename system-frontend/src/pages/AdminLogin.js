@@ -77,6 +77,22 @@ const AdminLogin = () => {
         <p className="mt-2 text-center text-sm text-gray-600">
           Restricted access for authorized administrators only
         </p>
+
+        {/* Default credentials hint for evaluation/testing */}
+        <div className="mt-4 mx-auto max-w-md">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-900">
+            <div className="flex items-start">
+              <FaShieldAlt className="w-4 h-4 text-blue-600 mt-0.5 mr-2" />
+              <div>
+                <div className="font-semibold">Ma'am Matshebula, default Admin credentials</div>
+                <div className="mt-1">
+                  <div><span className="font-medium">Email:</span> admin@mzansimomentshub.com</div>
+                  <div><span className="font-medium">Password:</span> Admin@123!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
