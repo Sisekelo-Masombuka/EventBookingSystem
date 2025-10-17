@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
-
-const API_BASE_URL = 'https://localhost:7037/api';
+import { API_BASE_URL } from '../../config';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');

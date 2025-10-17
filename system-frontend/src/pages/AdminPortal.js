@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { FaPlus, FaEdit, FaTrash, FaUsers, FaTicketAlt, FaChartBar, FaCog, FaSignOutAlt } from 'react-icons/fa';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, AreaChart, Area, Legend } from 'recharts';
 import { toast } from 'react-hot-toast';
@@ -18,8 +19,6 @@ const AdminPortal = () => {
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [error, setError] = useState(null);
 
-  // API base
-  const API_BASE_URL = 'https://localhost:7037/api';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   // Events state (admin list)

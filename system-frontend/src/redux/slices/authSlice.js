@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config';
 
-const API_BASE_URL = 'https://localhost:7037/api';
+// Using centralized API base URL
 
 // Async thunks
 export const login = createAsyncThunk(

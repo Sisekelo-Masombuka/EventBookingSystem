@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getCurrentUser } from '../redux/slices/authSlice';
 import { downloadTicket } from '../redux/slices/ticketsSlice';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaTicketAlt, FaDownload, FaEdit, FaSignOutAlt, FaCalendarAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,7 +12,7 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const { user, loading } = useSelector((state) => state.auth);
   const { downloading } = useSelector((state) => state.tickets);
-  const API_BASE_URL = 'https://localhost:7037/api';
+  // Using centralized API base URL
   const token = useSelector((state) => state.auth.token);
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
   const [bookings, setBookings] = useState([]);
